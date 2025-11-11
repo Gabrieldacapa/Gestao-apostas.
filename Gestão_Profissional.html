@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão Modular de Apostas</title>
+    <!-- Adiciona a biblioteca Chart.js para os gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary': '#1D4ED8',
+                        'secondary': '#D1FAE5',
+                        'green-win': '#10B981',
+                        'red-loss': '#EF4444',
+                        'gray-bg': '#F3F4F6',
+                        'purple-general': '#9333EA',
+                        'orange-temporal': '#F97316' /* Nova cor para análise temporal */
+                    },
+                     keyframes: { // Adicionado keyframes para o efeito de pulso
+                        pulse: {
+                            '0%, 100%': { opacity: 1 },
+                            '50%': { opacity: 0.5 },
+                        }
+                    },
+                    animation: { // Adicionado a animação de pulso
+                        pulse: 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Estilos personalizados para a tabela */
+        body {
+            background-color: #f3f4f6;
+        }
+        .tab-button.active {
+            border-bottom: 3px solid #1D4ED8;
+            color: #1D4ED8;
+            font-weight: 600;
+        }
+        .header-cell {
+            padding: 10px 15px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            background-color: #E5E7EB;
+            border-bottom: 2px solid #D1D5DB;
+        }
+        .data-input, .data-select {
+            border: 1px solid #D1D5DB;
+            border-radius: 4px;
+            padding: 4px 8px;
+            text-align: center;
+        }
+        .data-input.text-left, .data-select.text-left {
+            text-align: left;
+        }
+        .win { color: #10B981; font-weight: 600; }
+        .loss { color: #EF4444; font-weight: 600; }
+        .void { color: #9CA3AF; font-weight: 600; }
+        /* Classes de Alerta de Risco */
+        .sl-alert { /* Stop Loss Atingido */
+            background-color: #EF4444; 
+            color: #fff; 
+            padding: 8px; 
+            border-radius: 8px; 
+            font-weight: 900; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .pt-alert { /* Profit Target Atingido */
+            background-color: #10B981; 
+            color: #fff; 
+            padding: 8px; 
+            border-radius: 8px; 
+            font-weight: 900; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .sl-text { color: #EF4444; }
+        .pt-text { color: #10B981; }
+        /* Estilo para a tabela temporal */
+        .temporal-table th {
+            text-align: left;
+            padding: 8px 12px;
+            background-color: #FEF3C7; /* Amarelo Claro */
+        }
+        .temporal-table td {
+            padding: 8px 12px;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8 font-sans">
+
+    <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-2xl p-6">
+        <!-- NOVO TÍTULO EM DUAS LINHAS -->
+        <h1 class="text-3xl font-bold text-primary mb-1 text-center flex flex-col items-center">
+            Sistema de Gestão de Apostas 📊
+            <span class="text-xs font-medium text-gray-500 mt-1">Criador: Gabrieldacapa</span>
+        </h1>
+        <p class="text-gray-600 mb-6 text-center">Controle 4 bancas com Stakes Dinâmicas automáticas.</p>
+
+        <!-- Navegação das Abas -->
+        <div class="flex border-b border-gray-200 mb-6 overflow-x-auto">
+            <button class="tab-button active flex-shrink-0 px-4 py-2 text-sm text-gray-500 transition duration-150 ease-in-out" data-module="multiplas">MÚLTIPLAS (25%)</button>
+            <button class="tab-button flex-shrink-0 px-4 py-2 text-sm text-gray-500 transition duration-150 ease-in-out" data-module="alavancagem5">ALAV. 5% (50%)</button>
+            <button class="tab-button flex-shrink-0 px-4 py-2 text-sm text-gray-500 transition duration-150 ease-in-out" data-module="exchange50">ENTRADAS AO VIVO EXCHANGE</button>
+            <button class="tab-button flex-shrink-0 px-4 py-2 text-sm text-gray-500 transition duration-150 ease-in-out" data-module="exchange20">ALAVANCAGEM BANCA EXCHANGE</button>
+            <button class="tab-button flex-shrink-0 px-4 py-2 text-sm text-gray-500 transition duration-150 ease-in-out" data-module="analysis">ANÁLISE E GRÁFICOS</button>
+            <button class="tab-button flex-shrink-0 px-4 py-2 text-sm text-gray-500 transition duration-150 ease-in-out" data-module="config">CONFIGURAÇÃO</button>
+        </div>
+
+        <!-- Conteúdo das Abas -->
+        <div id="app-container">
+            <!-- O conteúdo será carregado aqui pelo JavaScript -->
+        </div>
+
+        <!-- Formulário de Nova Aposta (Visibilidade controlada por JS) -->
+        <div id="bet-form-container" class="mt-8 pt-6 border-t border-gray-200">
+            <h2 class="text-xl font-semibold mb-4 text-primary">Registrar Nova Aposta</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-5 gap-4">
+                <input type="number" id="stake-input" placeholder="Stake (Opcional)" class="data-input text-left col-span-1" step="0.01">
+                <input type="number" id="odd-input" placeholder="Odd (Ex: 1.85)" class="data-input text-left col-span-1" step="0.01" required>
+                <select id="result-select" class="data-select col-span-1" required>
+                    <option value="" disabled selected>Resultado</option>
+                    <option value="GANHOU">GANHOU</option>
+                    <option value="PERDEU">PERDEU</option>
+                    <option value="VOID">VOID (Anulada)</option>
+                </select>
+                <div class="col-span-2 flex flex-col justify-center text-center">
+                    <button id="add-bet-button" class="bg-primary text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-md">
+                        Registrar Operação
+                    </button>
+                </div>
+            </div>
+            <div id="error-message" class="text-red-loss mt-2 font-medium" style="display: none;"></div>
+        </div>
+        
+        <!-- Área de Métricas (Visibilidade controlada por JS) -->
+        <div id="metrics-area-container" class="mt-8 pt-6 border-t border-gray-200">
+            <h2 class="text-xl font-semibold mb-4 text-primary">Métricas do Módulo</h2>
+            <div id="risk-alert-message" class="mb-4 hidden text-center"></div> <!-- NOVO ELEMENTO DE ALERTA DE RISCO -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                <div class="bg-gray-100 p-3 rounded-lg shadow-inner">
+                    <p class="text-sm text-gray-500">Saldo Atual</p>
+                    <p id="metric-balance" class="text-lg font-bold">R$0.00</p>
+                </div>
+                <div class="bg-gray-100 p-3 rounded-lg shadow-inner">
+                    <p class="text-sm text-gray-500">Stake Base Próx. Aposta</p>
+                    <p id="metric-stake" class="text-lg font-bold text-primary">R$0.00</p>
+                </div>
+                <div class="bg-gray-100 p-3 rounded-lg shadow-inner">
+                    <p class="text-sm text-gray-500">Lucro Total</p>
+                    <p id="metric-total-profit" class="text-lg font-bold text-gray-800">R$0.00</p>
+                </div>
+                <div class="bg-gray-100 p-3 rounded-lg shadow-inner">
+                    <p class="text-sm text-gray-500">Total de Operações</p>
+                    <p id="metric-total" class="text-lg font-bold text-gray-800">0</p>
+                </div>
+            </div>
+            <div class="mt-4 text-sm text-gray-500 text-center">
+                <span id="metric-sl-target" class="sl-text font-medium">SL: R$0.00 (0.00%)</span> |
+                <span id="metric-pt-target" class="pt-text font-medium">PT: R$0.00 (0.00%)</span>
+            </div>
+        </div>
+
+        <div class="mt-8 pt-6 border-t border-gray-200 text-center text-sm text-gray-500">
+            <p>Os dados são salvos automaticamente no seu navegador. Não há risco de perder o progresso se você fechar esta página.</p>
+        </div>
+    </div>
+
+    <script>
+        // Variáveis globais
+        let activeModule = 'multiplas';
+        let lastTradingModule = 'multiplas'; // Módulo de trading ativo por último (para uso na análise e métricas)
+        let chartInstances = {}; // Para gerenciar instâncias de Chart.js
+
+        // Estrutura de cada módulo (Agora é 'let' e será carregado/modificado)
+        let modules = { 
+            'multiplas': {
+                name: 'MÚLTIPLAS (25%)',
+                initialBalance: 50.00,
+                stakePercentage: 0.25,
+                targetOdd: null,
+                description: 'Stake de 25% do Saldo. Foco em gestão de risco.',
+                stopLossDailyPercentage: 0.20, 
+                profitTargetDailyPercentage: 0.50, 
+            },
+            'alavancagem5': {
+                name: 'ALAV. 5% (50%)',
+                initialBalance: 25.49,
+                stakePercentage: 0.50,
+                targetOdd: 1.05,
+                description: 'Stake de 50% do Saldo. Alvo: Lucro de 5% sobre a Stake (Odd ~1.05).',
+                stopLossDailyPercentage: 0.10,
+                profitTargetDailyPercentage: 0.20,
+            },
+            'exchange50': {
+                name: 'ENTRADAS AO VIVO EXCHANGE',
+                initialBalance: 50.00,
+                stakePercentage: 0.50,
+                targetOdd: 1.50,
+                description: 'Stake de 50% do Saldo. Alvo: Lucro de 50% sobre a Stake (Odd ~1.50).',
+                stopLossDailyPercentage: 0.15,
+                profitTargetDailyPercentage: 0.30,
+            },
+            'exchange20': {
+                name: 'ALAVANCAGEM BANCA EXCHANGE',
+                initialBalance: 20.00,
+                stakePercentage: 0.50,
+                targetOdd: 1.20,
+                description: 'Stake de 50% do Saldo. Alvo: Lucro de 20% sobre a Stake (Odd ~1.20).',
+                stopLossDailyPercentage: 0.10,
+                profitTargetDailyPercentage: 0.40,
+            }
+        };
+
+        // Estrutura de dados para armazenamento
+        let dataStore = {};
+
+        // Mapeamento dos dias da semana (de 0=Dom a 6=Sáb) para nomes em Português
+        const daysOfWeekMap = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+        // ------------------------------------
+        // FUNÇÕES DE UTILIDADE E ARMAZENAMENTO
+        // ------------------------------------
+
+        // Carrega configurações dos módulos do localStorage
+        function loadModuleConfig() {
+            const storedConfig = localStorage.getItem('modulesConfig');
+            if (storedConfig) {
+                const loadedConfig = JSON.parse(storedConfig);
+                // Atualiza o objeto global 'modules' com as configurações salvas
+                Object.keys(loadedConfig).forEach(key => {
+                    if (modules[key]) {
+                        // Garante que apenas as propriedades salvas sejam atualizadas
+                        modules[key].initialBalance = loadedConfig[key].initialBalance || modules[key].initialBalance;
+                        modules[key].stakePercentage = loadedConfig[key].stakePercentage || modules[key].stakePercentage;
+                        modules[key].name = loadedConfig[key].name || modules[key].name; 
+                        modules[key].description = loadedConfig[key].description || modules[key].description;
+                        // NOVOS CAMPOS DE RISCO
+                        modules[key].stopLossDailyPercentage = loadedConfig[key].stopLossDailyPercentage || modules[key].stopLossDailyPercentage;
+                        modules[key].profitTargetDailyPercentage = loadedConfig[key].profitTargetDailyPercentage || loadedConfig[key].profitTargetDailyPercentage;
+                    }
+                });
+            }
+        }
+
+        // Salva configurações dos módulos no localStorage
+        function saveModuleConfig() {
+            const configToSave = {};
+            // Guarda apenas as propriedades editáveis de cada módulo
+            Object.keys(modules).forEach(key => {
+                configToSave[key] = {
+                    initialBalance: modules[key].initialBalance,
+                    stakePercentage: modules[key].stakePercentage,
+                    name: modules[key].name, 
+                    description: modules[key].description,
+                    // NOVOS CAMPOS DE RISCO
+                    stopLossDailyPercentage: modules[key].stopLossDailyPercentage,
+                    profitTargetDailyPercentage: modules[key].profitTargetDailyPercentage
+                };
+            });
+            localStorage.setItem('modulesConfig', JSON.stringify(configToSave));
+        }
+
+        // Carrega os dados do localStorage
+        function loadData() {
+            loadModuleConfig(); // Primeiro carrega a configuração
+            
+            try {
+                const storedData = localStorage.getItem('bettingDataStore');
+                if (storedData) {
+                    dataStore = JSON.parse(storedData);
+                }
+                
+                // Inicializa/Verifica o store, garantindo que todos os módulos existam
+                Object.keys(modules).forEach(key => {
+                    if (!dataStore[key]) {
+                        dataStore[key] = {
+                            balance: modules[key].initialBalance,
+                            history: []
+                        };
+                    }
+                });
+            } catch (e) {
+                console.error("Erro ao carregar dados do localStorage:", e);
+                // Fallback para inicialização padrão em caso de erro de parsing
+                Object.keys(modules).forEach(key => {
+                    dataStore[key] = {
+                        balance: modules[key].initialBalance,
+                        history: []
+                    };
+                });
+            }
+        }
+
+        // Salva os dados no localStorage
+        function saveData() {
+            localStorage.setItem('bettingDataStore', JSON.stringify(dataStore));
+            saveModuleConfig(); // Salva a configuração atual
+        }
+
+        // Formata um número para Moeda Brasileira (R$)
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            }).format(amount);
+        }
+        
+        // Atualiza os nomes das abas de trading
+        function updateTabNames() {
+            document.querySelector(`.tab-button[data-module="multiplas"]`).textContent = modules.multiplas.name;
+            document.querySelector(`.tab-button[data-module="alavancagem5"]`).textContent = modules.alavancagem5.name;
+            document.querySelector(`.tab-button[data-module="exchange50"]`).textContent = modules.exchange50.name;
+            document.querySelector(`.tab-button[data-module="exchange20"]`).textContent = modules.exchange20.name;
+        }
+
+        // ------------------------------------
+        // FUNÇÕES DE CÁLCULO
+        // ------------------------------------
+
+        // Calcula a stake com base no saldo atual
+        function calculateStake(balance, percentage) {
+            // Arredonda para 2 casas decimais para evitar problemas de precisão do JS
+            return parseFloat((balance * percentage).toFixed(2));
+        }
+
+        // Calcula o lucro/prejuízo
+        function calculateProfitLoss(stake, odd, result) {
+            let profitLoss = 0;
+            if (result === 'GANHOU') {
+                // Lucro = (Stake * Odd) - Stake
+                profitLoss = (stake * odd) - stake;
+            } else if (result === 'PERDEU') {
+                // Prejuízo = -Stake
+                profitLoss = -stake;
+            } else if (result === 'VOID') {
+                // VOID = 0
+                profitLoss = 0;
+            }
+            return parseFloat(profitLoss.toFixed(2));
+        }
+
+        // Função para recalcular o histórico e o saldo final de UM módulo
+        function calculateHistory(moduleKey) {
+            const moduleData = dataStore[moduleKey];
+            const moduleConfig = modules[moduleKey];
+            
+            // Garantir que a configuração do módulo existe antes de tentar ler 'initialBalance'
+            if (!moduleConfig) {
+                 console.error(`Erro: Configuração do módulo '${moduleKey}' não encontrada.`);
+                 // Retorna um array vazio para evitar o crash, caso a chave seja inválida.
+                 return [];
+            }
+            
+            let currentBalance = moduleConfig.initialBalance; // Sempre começa com o Saldo Inicial configurado
+            let calculatedHistory = [];
+            
+            moduleData.history.forEach(bet => {
+                // A stake Usada é o que foi salvo no momento do registro. Usamos o campo 'stakeUsed' que está no histórico.
+                const stakeUsed = bet.stakeUsed; 
+                const profitLoss = calculateProfitLoss(stakeUsed, bet.odd, bet.result);
+                const newBalance = parseFloat((currentBalance + profitLoss).toFixed(2));
+
+                calculatedHistory.push({
+                    ...bet,
+                    saldoAnterior: currentBalance,
+                    stakeUsada: stakeUsed,
+                    profitLoss: profitLoss,
+                    saldoFinal: newBalance
+                });
+
+                currentBalance = newBalance;
+            });
+            
+            // Atualiza o saldo final do módulo no dataStore
+            dataStore[moduleKey].balance = currentBalance;
+            return calculatedHistory;
+        }
+
+        // Função para calcular o histórico e a curva de saldo de TODAS as bancas juntas
+        function getCombinedHistory() {
+            let combinedBets = [];
+            let initialBalanceTotal = 0;
+
+            // 1. Coleta todas as apostas e calcula o saldo inicial total
+            Object.keys(modules).forEach(key => {
+                initialBalanceTotal += modules[key].initialBalance;
+                
+                dataStore[key].history.forEach(bet => {
+                    // Adiciona o módulo de origem e a data de registro
+                    combinedBets.push({
+                        date: bet.date, 
+                        odd: bet.odd,
+                        result: bet.result,
+                        stakeUsed: bet.stakeUsed,
+                        moduleKey: key,
+                        timestamp: bet.timestamp || new Date(bet.date.split('/').reverse().join('-')).getTime() // Garante timestamp
+                    });
+                });
+            });
+
+            // 2. Calcula o Saldo Corrente Total e a Curva de Crescimento
+            let currentBalance = initialBalanceTotal;
+            let runningBalances = [currentBalance]; 
+            let totalProfit = 0;
+            
+            // É importante ordenar as operações por timestamp para a curva global ser precisa
+            combinedBets.sort((a, b) => a.timestamp - b.timestamp);
+
+            combinedBets.forEach(bet => {
+                const profitLoss = calculateProfitLoss(bet.stakeUsed, bet.odd, bet.result);
+                
+                currentBalance = parseFloat((currentBalance + profitLoss).toFixed(2));
+                totalProfit += profitLoss;
+                runningBalances.push(currentBalance);
+            });
+            
+            // Remove o saldo inicial (o primeiro ponto) para que o gráfico comece no ponto 1 (após a primeira aposta)
+            runningBalances.shift(); 
+            
+            return {
+                initialBalanceTotal: initialBalanceTotal,
+                finalBalanceTotal: currentBalance,
+                totalProfit: parseFloat(totalProfit.toFixed(2)),
+                runningBalances: runningBalances, 
+                totalOperations: combinedBets.length,
+                allBets: combinedBets
+            };
+        }
+        
+        // Calcula o lucro total por módulo para o ranking de performance
+        function getProfitPerModule() {
+            const profitData = [];
+            Object.keys(modules).forEach(key => {
+                const moduleConfig = modules[key];
+                // Recalcula o histórico para garantir que o saldo final esteja correto
+                calculateHistory(key);
+                const finalBalance = dataStore[key].balance;
+                const totalProfit = finalBalance - moduleConfig.initialBalance;
+                
+                profitData.push({
+                    name: moduleConfig.name,
+                    key: key,
+                    initialBalance: moduleConfig.initialBalance,
+                    finalBalance: finalBalance,
+                    totalProfit: totalProfit,
+                    profitPercentage: moduleConfig.initialBalance > 0 ? (totalProfit / moduleConfig.initialBalance) * 100 : 0
+                });
+            });
+
+            // Ordena por lucro total (do maior para o menor)
+            profitData.sort((a, b) => b.totalProfit - a.totalProfit);
+
+            return profitData;
+        }
+        
+        // Função para realizar a análise temporal
+        function getTemporalAnalysis(moduleKey) {
+            let betsToAnalyze = [];
+            
+            if (moduleKey === 'global') {
+                // Se for análise global, usa todas as apostas
+                betsToAnalyze = getCombinedHistory().allBets;
+            } else {
+                // Se for um módulo específico, calcula o histórico e usa
+                const history = calculateHistory(moduleKey);
+                // Adiciona uma verificação para garantir que o histórico não está vazio (caso calculateHistory retorne [])
+                if (history && history.length > 0) {
+                    betsToAnalyze = history.map(bet => ({
+                        ...bet,
+                        timestamp: bet.timestamp || new Date(bet.date.split('/').reverse().join('-')).getTime()
+                    }));
+                }
+            }
+
+            // Estruturas de agregação
+            const temporalData = {
+                dayOfWeek: initializeAggregation(daysOfWeekMap),
+                partOfTheWeek: initializeAggregation(['Dia Útil', 'Fim de Semana']),
+                partOfTheDay: initializeAggregation(['Manhã (05h-11h)', 'Tarde (12h-17h)', 'Noite/Madrugada (18h-04h)']),
+                dayOfMonth: initializeAggregation(Array.from({ length: 31 }, (_, i) => `${i + 1}`)),
+            };
+
+            function initializeAggregation(keys) {
+                const obj = {};
+                keys.forEach(key => obj[key] = { netProfit: 0, count: 0 });
+                return obj;
+            }
+
+            // Agregação dos dados
+            betsToAnalyze.forEach(bet => {
+                const dateObj = new Date(bet.timestamp);
+                const dayOfWeek = dateObj.getDay(); // 0 (Sun) to 6 (Sat)
+                const dayOfMonth = dateObj.getDate(); // 1 to 31
+                const hour = dateObj.getHours(); // 0 to 23
+                const profitLoss = bet.profitLoss || calculateProfitLoss(bet.stakeUsed, bet.odd, bet.result);
+
+                // 1. Dia da Semana
+                const dayOfWeekName = daysOfWeekMap[dayOfWeek];
+                temporalData.dayOfWeek[dayOfWeekName].netProfit += profitLoss;
+                temporalData.dayOfWeek[dayOfWeekName].count++;
+
+                // 2. Parte da Semana
+                const partOfTheWeek = (dayOfWeek === 0 || dayOfWeek === 6) ? 'Fim de Semana' : 'Dia Útil';
+                temporalData.partOfTheWeek[partOfTheWeek].netProfit += profitLoss;
+                temporalData.partOfTheWeek[partOfTheWeek].count++;
+
+                // 3. Parte do Dia
+                let partOfTheDay = '';
+                if (hour >= 5 && hour < 12) {
+                    partOfTheDay = 'Manhã (05h-11h)';
+                } else if (hour >= 12 && hour < 18) {
+                    partOfTheDay = 'Tarde (12h-17h)';
+                } else {
+                    partOfTheDay = 'Noite/Madrugada (18h-04h)';
+                }
+                temporalData.partOfTheDay[partOfTheDay].netProfit += profitLoss;
+                temporalData.partOfTheDay[partOfTheDay].count++;
+
+                // 4. Dia do Mês
+                const dayOfMonthKey = dayOfMonth.toString();
+                // Apenas se o dia do mês existir (para evitar 30/31 em meses curtos)
+                if (temporalData.dayOfMonth[dayOfMonthKey]) { 
+                    temporalData.dayOfMonth[dayOfMonthKey].netProfit += profitLoss;
+                    temporalData.dayOfMonth[dayOfMonthKey].count++;
+                }
+            });
+            
+            // Formatação do resultado (converte lucros para 2 casas decimais)
+            Object.keys(temporalData).forEach(groupKey => {
+                Object.keys(temporalData[groupKey]).forEach(timeKey => {
+                    temporalData[groupKey][timeKey].netProfit = parseFloat(temporalData[groupKey][timeKey].netProfit.toFixed(2));
+                });
+            });
+
+            return temporalData;
+        }
+
+        // NOVO: Função para gerar o diagnóstico de performance temporal
+        function generatePeriodAnalysis(temporalData) {
+            // Calcula o total de operações na análise temporal
+            const totalCount = Object.values(temporalData.dayOfWeek).reduce((acc, curr) => acc + curr.count, 0);
+
+            if (totalCount === 0) {
+                return '<div class="space-y-4 p-4 mt-8 bg-blue-50 border-l-4 border-primary rounded-lg shadow-inner"><p class="text-sm text-gray-700">Ainda não há dados suficientes para gerar um Diagnóstico Temporal.</p></div>';
+            }
+
+            // Função auxiliar para encontrar o melhor (maior lucro) e pior (menor lucro) período
+            const findExtremes = (data) => {
+                let best = { key: null, profit: -Infinity, count: 0 };
+                let worst = { key: null, profit: Infinity, count: 0 };
+                
+                Object.entries(data).forEach(([key, metrics]) => {
+                    if (metrics.count > 0) {
+                        if (metrics.netProfit > best.profit) {
+                            best = { key, profit: metrics.netProfit, count: metrics.count };
+                        }
+                        if (metrics.netProfit < worst.profit) {
+                            worst = { key, profit: metrics.netProfit, count: metrics.count };
+                        }
+                    }
+                });
+
+                return { best, worst };
+            };
+
+            const dayOfWeekExtremes = findExtremes(temporalData.dayOfWeek);
+            const partOfTheDayExtremes = findExtremes(temporalData.partOfTheDay);
+            
+            let analysisHTML = '<div class="space-y-4 p-4 mt-8 bg-blue-50 border-l-4 border-primary rounded-lg shadow-inner">';
+            analysisHTML += '<h5 class="text-lg font-bold text-primary">Diagnóstico de Performance Temporal:</h5>';
+            analysisHTML += `<p class="text-sm text-gray-700 font-medium">Análise baseada em <span class="font-bold">${totalCount}</span> operações registradas:</p>`; 
+
+            // 1. Análise do Dia da Semana
+            if (dayOfWeekExtremes.best.key) {
+                analysisHTML += `<div class="p-3 bg-white rounded-md shadow-sm border-l-4 border-green-400">
+                    <p class="font-semibold text-green-700 mb-1">Melhor Dia de Faturamento:</p>
+                    <p class="text-sm">Seu dia mais lucrativo é a <span class="font-bold">${dayOfWeekExtremes.best.key}</span>, com lucro líquido de 
+                    <span class="text-green-win font-bold">${formatCurrency(dayOfWeekExtremes.best.profit)}</span> em ${dayOfWeekExtremes.best.count} ops. 
+                    <span class="font-medium text-xs block mt-1">Sugestão: Priorize ou estude o que funciona neste dia.</span></p>
+                </div>`;
+            }
+            
+            if (dayOfWeekExtremes.worst.key && dayOfWeekExtremes.worst.profit < 0) {
+                analysisHTML += `<div class="p-3 bg-white rounded-md shadow-sm border-l-4 border-red-400">
+                    <p class="font-semibold text-red-700 mb-1">Pior Dia de Prejuízo:</p>
+                    <p class="text-sm">O <span class="font-bold">${dayOfWeekExtremes.worst.key}</span> registra seu maior prejuízo líquido: 
+                    <span class="text-red-loss font-bold">${formatCurrency(dayOfWeekExtremes.worst.profit)}</span>.
+                    <span class="font-medium text-xs block mt-1">Alerta: Considere evitar ou reduzir a exposição neste dia.</span></p>
+                </div>`;
+            }
+            
+            // 2. Análise do Período do Dia (Horário)
+            if (partOfTheDayExtremes.best.key) {
+                analysisHTML += `<div class="p-3 bg-white rounded-md shadow-sm border-l-4 border-green-400">
+                    <p class="font-semibold text-green-700 mb-1">Melhor Período do Dia (Faturamento):</p>
+                    <p class="text-sm">O melhor horário é na <span class="font-bold">${partOfTheDayExtremes.best.key}</span>, com 
+                    <span class="text-green-win font-bold">${formatCurrency(partOfTheDayExtremes.best.profit)}</span> de lucro líquido.
+                    <span class="font-medium text-xs block mt-1">Sugestão: Seu foco é melhor neste período.</span></p>
+                </div>`;
+            }
+
+            if (partOfTheDayExtremes.worst.key && partOfTheDayExtremes.worst.profit < 0) {
+                analysisHTML += `<div class="p-3 bg-white rounded-md shadow-sm border-l-4 border-red-400">
+                    <p class="font-semibold text-red-700 mb-1">Pior Período do Dia (Prejuízo):</p>
+                    <p class="text-sm">O pior horário é na <span class="font-bold">${partOfTheDayExtremes.worst.key}</span>, com 
+                    <span class="text-red-loss font-bold">${formatCurrency(partOfTheDayExtremes.worst.profit)}</span> de prejuízo líquido.
+                    <span class="font-medium text-xs block mt-1">Alerta: Evite operar neste horário ou melhore a gestão de risco.</span></p>
+                </div>`;
+            }
+
+            analysisHTML += '</div>';
+
+            return analysisHTML;
+        }
+
+        // ------------------------------------
+        // FUNÇÕES DE RENDERIZAÇÃO E UI
+        // ------------------------------------
+
+        // Renderiza a tabela do módulo ativo
+        function renderTable() {
+            const moduleConfig = modules[activeModule];
+            const history = calculateHistory(activeModule); // Usa o histórico recalculado
+            const container = document.getElementById('app-container');
+            
+            // Tabela de Histórico
+            let tableHTML = `
+                <h3 class="text-lg font-semibold mb-3 text-gray-700">${moduleConfig.name} - ${moduleConfig.description}</h3>
+                <div class="overflow-x-auto shadow-lg rounded-lg border border-gray-200">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="header-cell text-left rounded-tl-lg">Data</th>
+                                <th class="header-cell text-right">Saldo Ant.</th>
+                                <th class="header-cell text-right">Stake Usada</th>
+                                <th class="header-cell text-center">Odd</th>
+                                <th class="header-cell text-center">Resultado</th>
+                                <th class="header-cell text-right">Lucro/Prejuízo</th>
+                                <th class="header-cell text-right rounded-tr-lg">Saldo Final</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="history-body">
+            `;
+
+            history.slice().reverse().forEach(bet => { // Inverte a ordem para mostrar o mais recente primeiro
+                const profitLossClass = bet.profitLoss > 0 ? 'win' : (bet.profitLoss < 0 ? 'loss' : 'void');
+
+                tableHTML += `
+                    <tr>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-left text-gray-900">${bet.date}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-right text-gray-500">${formatCurrency(bet.saldoAnterior)}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-right font-medium text-primary">${formatCurrency(bet.stakeUsada)}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-center text-gray-700">${bet.odd.toFixed(2)}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-center ${profitLossClass}">${bet.result}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-right ${profitLossClass}">${formatCurrency(bet.profitLoss)}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-right font-bold text-gray-800">${formatCurrency(bet.saldoFinal)}</td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            container.innerHTML = tableHTML;
+            updateMetrics();
+        }
+
+        // Renderiza a aba de Configuração
+        function renderConfiguration() {
+             const container = document.getElementById('app-container');
+             
+             let configHTML = `
+                <h3 class="text-lg font-semibold mb-6 text-primary">Configuração de Bancas e Stakes</h3>
+                <p class="text-sm text-gray-600 mb-6">Altere o Nome, a Descrição, o Saldo Inicial e o Percentual de Stake. Salvar recalcula todo o histórico a partir do novo Saldo Inicial.</p>
+                <form id="config-form" class="space-y-6">
+             `;
+             
+             // Cria os campos para cada módulo configurável
+             Object.keys(modules).forEach(key => {
+                 const moduleConfig = modules[key];
+                 const moduleName = moduleConfig.name || key.toUpperCase(); 
+
+                 configHTML += `
+                    <div class="p-4 border border-gray-200 rounded-lg shadow-sm bg-gray-50">
+                        <h4 class="text-lg font-semibold text-gray-800 mb-3">${moduleName}</h4>
+                        
+                        <!-- Campo: Nome da Banca/Módulo -->
+                        <div class="mb-4">
+                            <label for="${key}-name" class="block text-sm font-medium text-gray-700">Nome da Banca/Módulo</label>
+                            <input type="text" id="${key}-name" name="${key}-name" value="${moduleConfig.name}" class="data-input w-full mt-1 text-left" required maxlength="50">
+                        </div>
+
+                        <!-- Campo: Descrição/Estratégia -->
+                        <div class="mb-4">
+                            <label for="${key}-description" class="block text-sm font-medium text-gray-700">Descrição/Estratégia</label>
+                            <input type="text" id="${key}-description" name="${key}-description" value="${moduleConfig.description}" class="data-input w-full mt-1 text-left" required maxlength="100">
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="${key}-balance" class="block text-sm font-medium text-gray-700">Saldo Inicial (R$)</label>
+                                <input type="number" id="${key}-balance" name="${key}-balance" value="${moduleConfig.initialBalance.toFixed(2)}" step="0.01" class="data-input w-full mt-1 text-left" required>
+                            </div>
+                            <div>
+                                <label for="${key}-stake" class="block text-sm font-medium text-gray-700">Stake Percentual (%)</label>
+                                <input type="number" id="${key}-stake" name="${key}-stake" value="${(moduleConfig.stakePercentage * 100).toFixed(2)}" step="0.01" class="data-input w-full mt-1 text-left" required>
+                            </div>
+                        </div>
+                        
+                        <!-- CAMPOS DE RISCO -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <div>
+                                <label for="${key}-sl" class="block text-sm font-medium text-red-700">Stop Loss Total % (sobre Saldo Inicial)</label>
+                                <input type="number" id="${key}-sl" name="${key}-sl" value="${(moduleConfig.stopLossDailyPercentage * 100).toFixed(2)}" step="0.01" class="data-input w-full mt-1 text-left" required>
+                                <p class="text-xs text-red-500 mt-1">Se atingido, o módulo é bloqueado para novas operações.</p>
+                            </div>
+                            <div>
+                                <label for="${key}-pt" class="block text-sm font-medium text-green-700">Meta de Lucro Total % (sobre Saldo Inicial)</label>
+                                <input type="number" id="${key}-pt" name="${key}-pt" value="${(moduleConfig.profitTargetDailyPercentage * 100).toFixed(2)}" step="0.01" class="data-input w-full mt-1 text-left" required>
+                                <p class="text-xs text-green-500 mt-1">Se atingida, o módulo exibe aviso para considerar a pausa.</p>
+                            </div>
+                        </div>
+
+                    </div>
+                 `;
+             });
+             
+             configHTML += `
+                <button type="submit" class="w-full bg-green-win text-white py-3 rounded-lg hover:bg-green-600 transition duration-150 shadow-lg">
+                    Salvar Configurações e Atualizar Saldos
+                </button>
+                <div id="config-message" class="mt-4 font-medium text-center" style="display: none;"></div>
+                </form>
+             `;
+             
+             container.innerHTML = configHTML;
+             
+             // Adicionar o listener de submit
+             document.getElementById('config-form').addEventListener('submit', handleConfigSave);
+        }
+
+        // Função auxiliar para renderizar a tabela temporal
+        function renderTemporalTable(title, data) {
+            let tableHTML = `
+                <h5 class="text-md font-semibold text-orange-temporal mt-4 mb-2">${title}</h5>
+                <div class="overflow-x-auto border border-yellow-300 rounded-lg mb-6 shadow-inner">
+                    <table class="min-w-full divide-y divide-gray-200 temporal-table">
+                        <thead class="bg-yellow-100">
+                            <tr>
+                                <th class="text-xs uppercase text-gray-600">Período</th>
+                                <th class="text-xs uppercase text-right text-gray-600">Operações</th>
+                                <th class="text-xs uppercase text-right text-gray-600">Lucro Líquido</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-100">
+            `;
+            
+            // Converte o objeto de dados em um array e ordena por lucro (netProfit)
+            const sortedData = Object.entries(data)
+                .filter(([_, value]) => value.count > 0) // Remove linhas sem operações
+                .sort(([, a], [, b]) => b.netProfit - a.netProfit);
+
+            if (sortedData.length === 0) {
+                 tableHTML += `<tr><td colspan="3" class="text-center py-4 text-gray-500">Nenhum dado de operação para este período.</td></tr>`;
+            } else {
+                sortedData.forEach(([period, metrics]) => {
+                    const profitLossClass = metrics.netProfit >= 0 ? 'win' : 'loss';
+                    tableHTML += `
+                        <tr>
+                            <td class="text-sm font-medium text-gray-800">${period}</td>
+                            <td class="text-sm text-right text-gray-500">${metrics.count}</td>
+                            <td class="text-sm text-right ${profitLossClass}">${formatCurrency(metrics.netProfit)}</td>
+                            
+                        </tr>
+                    `;
+                });
+            }
+
+            tableHTML += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            return tableHTML;
+        }
+
+        // Renderiza a aba de Análise
+        function renderAnalysis() {
+            const container = document.getElementById('app-container');
+            
+            // Define o módulo a ser analisado.
+            const moduleToAnalyze = document.getElementById('analysis-module-select')?.value || lastTradingModule; 
+            
+            // Variáveis declaradas para uso condicional
+            let historyData = [];
+            let moduleConfig = {};
+            let dates = [];
+            let finalBalances = [];
+            let profitLosses = [];
+            let bestOp = { amount: -Infinity, date: '' };
+            let worstOp = { amount: Infinity, date: '' };
+            let wins = 0;
+            let losses = 0;
+            let hitRate = 0;
+
+            // Obter Análise Temporal (chamado com o módulo/global correto)
+            const temporalAnalysis = getTemporalAnalysis(moduleToAnalyze);
+
+
+            // Preparação dos dados para gráficos e métricas específicas do módulo
+            if (moduleToAnalyze !== 'global') {
+                moduleConfig = modules[moduleToAnalyze];
+                historyData = calculateHistory(moduleToAnalyze); 
+                
+                // Prepara os dados para os gráficos do MÓDULO ESPECÍFICO
+                dates = historyData.map((bet, index) => `${index + 1} - ${bet.date}`); 
+                finalBalances = historyData.map(bet => bet.saldoFinal);
+                profitLosses = historyData.map(bet => bet.profitLoss);
+
+                // Métrica: Melhor/Pior Dia
+                historyData.forEach((bet) => {
+                    if (bet.profitLoss > bestOp.amount) {
+                        bestOp = { amount: bet.profitLoss, date: bet.date };
+                    }
+                    if (bet.profitLoss < worstOp.amount) {
+                        worstOp = { amount: bet.profitLoss, date: bet.date };
+                    }
+                });
+
+                // Métrica: Hit Rate
+                const totalBets = historyData.length;
+                wins = historyData.filter(bet => bet.result === 'GANHOU').length;
+                losses = historyData.filter(bet => bet.result === 'PERDEU').length;
+                hitRate = totalBets > 0 ? (wins / totalBets) * 100 : 0;
+            }
+
+
+            // Cria as opções para o seletor de módulos (incluindo a opção GLOBAL)
+            let moduleOptions = `
+                <option value="global" ${moduleToAnalyze === 'global' ? 'selected' : ''}>
+                    TODAS AS BANCAS (GLOBAL)
+                </option>
+            `;
+            moduleOptions += Object.keys(modules).map(key => `
+                <option value="${key}" ${key === moduleToAnalyze ? 'selected' : ''}>
+                    ${modules[key].name}
+                </option>
+            `).join('');
+
+            
+
+
+            // Conteúdo HTML da Análise
+            let analysisHTML = `
+                <h3 class="text-lg font-semibold mb-3 text-primary">Análise de Performance</h3>
+                
+                <!-- Seletor do Módulo para Análise -->
+                <div class="mb-6 flex items-center space-x-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                    <label for="analysis-module-select" class="font-medium text-gray-700 flex-shrink-0">Analisar Dados:</label>
+                    <select id="analysis-module-select" class="data-select text-left flex-grow border border-gray-300 rounded-lg p-2">
+                        ${moduleOptions}
+                    </select>
+                </div>
+            `;
+            
+            // Se for módulo específico, mostra as métricas detalhadas e gráficos individuais
+            if (moduleToAnalyze !== 'global') {
+                analysisHTML += `
+                    <h4 class="text-lg font-semibold mb-4 text-gray-700">Métricas Detalhadas: ${moduleConfig.name}</h4>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-center">
+                        <div class="bg-green-100 p-3 rounded-lg shadow-md">
+                            <p class="text-sm text-gray-500">Melhor Operação (R$)</p>
+                            <p class="text-lg font-bold text-green-win">${formatCurrency(bestOp.amount)}</p>
+                            <p class="text-xs text-gray-500">${bestOp.date || 'N/A'}</p>
+                        </div>
+                        <div class="bg-red-100 p-3 rounded-lg shadow-md">
+                            <p class="text-sm text-gray-500">Pior Operação (R$)</p>
+                            <p class="text-lg font-bold text-red-loss">${formatCurrency(worstOp.amount)}</p>
+                            <p class="text-xs text-gray-500">${worstOp.date || 'N/A'}</p>
+                        </div>
+                        <div class="bg-gray-100 p-3 rounded-lg shadow-md">
+                            <p class="text-sm text-gray-500">Total Ganhas / Perdidas</p>
+                            <p class="text-lg font-bold text-gray-800">${wins} / ${losses}</p>
+                        </div>
+                        <div class="bg-gray-100 p-3 rounded-lg shadow-md">
+                            <p class="text-sm text-gray-500">Taxa de Acerto (Hit Rate)</p>
+                            <p class="text-lg font-bold text-primary">${hitRate.toFixed(1)}%</p>
+                        </div>
+                    </div>
+
+                    <h4 class="text-md font-semibold mt-6 mb-3 text-gray-700">1. Evolução do Saldo Final (Curva de Crescimento do Módulo)</h4>
+                    <div class="bg-white p-4 rounded-lg shadow-xl mb-8">
+                        <canvas id="balanceChart"></canvas>
+                    </div>
+
+                    <h4 class="text-md font-semibold mt-6 mb-3 text-gray-700">2. Lucro/Prejuízo por Operação (Módulo)</h4>
+                    <div class="bg-white p-4 rounded-lg shadow-xl mb-8">
+                        <canvas id="profitLossChart"></canvas>
+                    </div>
+                `;
+            } else {
+                 // Adiciona a área de métricas globais se a opção for 'global'
+                const combinedData = getCombinedHistory();
+                analysisHTML += `
+                    <h4 class="text-lg font-semibold mb-4 text-gray-700">Métricas Detalhadas: GLOBAL (Todas as Bancas)</h4>
+                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-center">
+                        <div class="bg-purple-100 p-3 rounded-lg shadow-md">
+                            <p class="text-sm text-gray-500">Saldo Global Atual</p>
+                            <p class="text-xl font-bold text-purple-600">${formatCurrency(combinedData.finalBalanceTotal)}</p>
+                        </div>
+                        <div class="bg-purple-100 p-3 rounded-lg shadow-md">
+                            <p class="text-sm text-gray-500">Lucro Global</p>
+                            <p class="text-xl font-bold text-purple-600">${formatCurrency(combinedData.totalProfit)}</p>
+                        </div>
+                        <div class="bg-purple-100 p-3 rounded-lg shadow-md">
+                            <p class="text-sm text-gray-500">Total de Operações</p>
+                            <p class="text-xl font-bold text-purple-600">${combinedData.totalOperations}</p>
+                        </div>
+                        <div class="bg-purple-100 p-3 rounded-lg shadow-md">
+                            <p class="text-sm text-gray-500">Saldo Inicial Total</p>
+                            <p class="text-xl font-bold text-purple-600">${formatCurrency(combinedData.initialBalanceTotal)}</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            
+            // --- NOVO: ANÁLISE TEMPORAL ---
+            analysisHTML += `
+                <div class="mt-10 pt-6 border-t border-gray-300">
+                    <h4 class="text-md font-semibold mb-3 text-orange-temporal">5. Análise Temporal de Apostas (Lucro Líquido por Período)</h4>
+                    
+                    <!-- NOVO: DIAGNÓSTICO DE PERFORMANCE TEMPORAL -->
+                    ${generatePeriodAnalysis(temporalAnalysis)}
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                        <div class="col-span-1">
+                            ${renderTemporalTable('Lucro por Dia da Semana', temporalAnalysis.dayOfWeek)}
+                        </div>
+                        <div class="col-span-1">
+                            ${renderTemporalTable('Lucro por Período da Semana', temporalAnalysis.partOfTheWeek)}
+                        </div>
+                        <div class="col-span-1">
+                            ${renderTemporalTable('Lucro por Período do Dia (Manhã: 05h-11h | Tarde: 12h-17h | Noite: 18h-04h)', temporalAnalysis.partOfTheDay)}
+                        </div>
+                        <div class="col-span-1">
+                            ${renderTemporalTable('Lucro por Dia do Mês', temporalAnalysis.dayOfMonth)}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+
+            // --- GRÁFICO GERAL (Mantido sempre visível, mas alterei a ordem) ---
+            const combinedData = getCombinedHistory();
+            const combinedLabels = Array.from({ length: combinedData.totalOperations }, (_, i) => `Op. ${i + 1}`);
+
+            analysisHTML += `
+                <div class="mt-10 pt-6 border-t border-gray-300">
+                    <h4 class="text-md font-semibold mb-3 text-purple-general">3. Evolução Global de Saldo (Todas as Bancas)</h4>
+                    <div class="bg-white p-4 rounded-lg shadow-xl">
+                        <canvas id="generalBalanceChart"></canvas>
+                    </div>
+                </div>
+            `;
+            
+            // --- RANKING DE LUCRO POR BANCA ---
+            const profitRanking = getProfitPerModule();
+
+            let rankingHTML = `
+                <!-- RANKING DE LUCRO POR BANCA -->
+                <h4 class="text-md font-semibold mt-10 mb-3 text-purple-general pt-6 border-t border-gray-300">4. Ranking de Lucro por Banca</h4>
+                <p class="text-sm text-gray-600 mb-4">Abaixo está o desempenho de lucro/prejuízo de cada módulo, ordenado do mais lucrativo para o menos lucrativo.</p>
+                <div class="space-y-3">
+            `;
+
+            profitRanking.forEach((item, index) => {
+                const isTop = index === 0 && item.totalProfit > 0; // Só é Top se for lucrativo
+                const profitClass = item.totalProfit >= 0 ? 'win' : 'loss';
+                const bgColor = isTop ? 'bg-yellow-100 border-yellow-500' : 'bg-white border-gray-200';
+                
+                rankingHTML += `
+                    <div class="flex justify-between items-center p-4 border rounded-lg shadow-md ${bgColor}">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-xl font-extrabold ${isTop ? 'text-yellow-700' : 'text-gray-500'}">${index + 1}.</span>
+                            <div>
+                                <p class="font-semibold text-gray-800">${item.name}</p>
+                                <p class="text-xs text-gray-500">Saldo Inicial: ${formatCurrency(item.initialBalance)}</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-lg ${profitClass}">${formatCurrency(item.totalProfit)}</p>
+                            <p class="text-sm text-gray-500">${item.profitPercentage.toFixed(1)}% de Retorno</p>
+                        </div>
+                    </div>
+                `;
+            });
+
+            rankingHTML += `</div>`;
+            analysisHTML += rankingHTML;
+
+            container.innerHTML = analysisHTML;
+            
+            // Adiciona listener para trocar o módulo de análise
+            document.getElementById('analysis-module-select').addEventListener('change', (e) => {
+                // Ao trocar, re-renderiza a análise para o novo módulo
+                lastTradingModule = e.target.value !== 'global' ? e.target.value : Object.keys(modules)[0]; // Garante que lastTradingModule seja uma chave real
+                renderAnalysis();
+            });
+
+            // Destruir gráficos antigos
+            Object.values(chartInstances).forEach(chart => chart.destroy());
+            chartInstances = {};
+            
+            // Atualiza métricas (usa o módulo que estava ativo antes da análise)
+            updateMetrics(lastTradingModule);
+            
+            // ------------------------------------
+            // DESENHO DOS GRÁFICOS
+            // ------------------------------------
+
+            if (moduleToAnalyze !== 'global') {
+                // 1. Desenhar Gráfico de Saldo (MÓDULO ESPECÍFICO)
+                const balanceCtx = document.getElementById('balanceChart').getContext('2d');
+                chartInstances.balanceChart = new Chart(balanceCtx, {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [{
+                            label: 'Saldo Final (R$)',
+                            data: finalBalances,
+                            borderColor: '#1D4ED8',
+                            backgroundColor: 'rgba(29, 78, 216, 0.1)',
+                            fill: true,
+                            tension: 0.2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: false } }
+                    }
+                });
+
+                // 2. Desenhar Gráfico de Lucro/Prejuízo (MÓDULO ESPECÍFICO)
+                const profitLossCtx = document.getElementById('profitLossChart').getContext('2d');
+                chartInstances.profitLossChart = new Chart(profitLossCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: dates,
+                        datasets: [{
+                            label: 'Lucro / Prejuízo (R$)',
+                            data: profitLosses,
+                            backgroundColor: profitLosses.map(p => p >= 0 ? '#10B981' : '#EF4444'),
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            }
+            
+            // 3. Desenhar Gráfico de Saldo Geral (TODAS AS BANCAS) - Sempre desenhado
+            const generalCtx = document.getElementById('generalBalanceChart').getContext('2d');
+            chartInstances.generalBalanceChart = new Chart(generalCtx, {
+                type: 'line',
+                data: {
+                    labels: combinedLabels,
+                    datasets: [{
+                        label: 'Saldo Global (R$)',
+                        data: combinedData.runningBalances,
+                        borderColor: '#9333EA', /* Cor Roxa */
+                        backgroundColor: 'rgba(147, 51, 234, 0.15)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 1 
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: {
+                             callbacks: {
+                                label: function(context) {
+                                    return ` ${context.dataset.label}: ${formatCurrency(context.parsed.y)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: { 
+                        y: { beginAtZero: false, title: { display: true, text: 'Saldo Total (R$)' } },
+                        x: { title: { display: true, text: 'Número de Operações Registradas (Todas as Bancas)' } }
+                    }
+                }
+            });
+
+        }
+
+        // Handler para salvar a configuração
+        function handleConfigSave(event) {
+            event.preventDefault();
+            const form = event.target;
+            const messageElement = document.getElementById('config-message');
+            messageElement.style.display = 'none';
+            messageElement.classList.remove('text-red-loss', 'text-green-win');
+
+            let configUpdated = false;
+            let validationError = false;
+
+            Object.keys(modules).forEach(key => {
+                const newBalanceStr = form.elements[`${key}-balance`]?.value;
+                const newStakePctStr = form.elements[`${key}-stake`]?.value;
+                const newSLPctStr = form.elements[`${key}-sl`]?.value; 
+                const newPTPctStr = form.elements[`${key}-pt`]?.value; 
+                const newName = form.elements[`${key}-name`]?.value.trim();
+                const newDescription = form.elements[`${key}-description`]?.value.trim();
+                
+                const newBalance = parseFloat(newBalanceStr);
+                const newStakePct = parseFloat(newStakePctStr) / 100;
+                const newSLPct = parseFloat(newSLPctStr) / 100; 
+                const newPTPct = parseFloat(newPTPctStr) / 100; 
+
+                if (isNaN(newBalance) || newBalance < 0 || isNaN(newStakePct) || newStakePct <= 0 || newStakePct > 1 || !newName || !newDescription || isNaN(newSLPct) || newSLPct < 0 || isNaN(newPTPct) || newPTPct < 0) {
+                     messageElement.textContent = `Erro de validação no módulo. Verifique se o Nome e a Descrição estão preenchidos, o saldo é positivo e todos os percentuais estão entre 0% e 100% (ou 0% e 1000% se for o caso, mas > 0).`;
+                     messageElement.classList.add('text-red-loss');
+                     messageElement.style.display = 'block';
+                     validationError = true;
+                     return; 
+                }
+
+                // Verifica se houve mudança e atualiza o objeto global 'modules'
+                if (
+                    modules[key].initialBalance !== newBalance || 
+                    modules[key].stakePercentage !== newStakePct ||
+                    modules[key].name !== newName || 
+                    modules[key].description !== newDescription ||
+                    modules[key].stopLossDailyPercentage !== newSLPct || 
+                    modules[key].profitTargetDailyPercentage !== newPTPct 
+                ) {
+                    
+                    // Se o saldo inicial for alterado, o saldo atual do dataStore é resetado
+                    // para o valor inicial configurado, forçando um recálculo total do histórico
+                    if (modules[key].initialBalance !== newBalance) {
+                        dataStore[key].balance = newBalance; 
+                    }
+                    
+                    modules[key].initialBalance = newBalance;
+                    modules[key].stakePercentage = newStakePct;
+                    modules[key].name = newName; 
+                    modules[key].description = newDescription;
+                    modules[key].stopLossDailyPercentage = newSLPct; 
+                    modules[key].profitTargetDailyPercentage = newPTPct; 
+                    
+                    configUpdated = true;
+                }
+            });
+
+            if (validationError) return;
+
+            if (configUpdated) {
+                saveData(); 
+                renderConfiguration(); // Re-renderiza para mostrar os novos valores e o estado atual
+                
+                messageElement.textContent = 'Configurações salvas e saldos iniciais atualizados com sucesso!';
+                messageElement.classList.add('text-green-win');
+                messageElement.style.display = 'block';
+
+                updateTabNames(); // Atualiza os nomes das abas
+                updateMetrics(); // Força a atualização das métricas do módulo anterior
+            } else {
+                messageElement.textContent = 'Nenhuma alteração detectada.';
+                messageElement.classList.add('text-gray-500');
+                messageElement.style.display = 'block';
+            }
+        }
+
+
+        // Atualiza as métricas no rodapé. Recebe 'key' opcional para análise.
+        function updateMetrics(overrideModuleKey = null) {
+            const currentModuleKey = overrideModuleKey || (activeModule === 'analysis' ? lastTradingModule : activeModule); 
+
+            // Se for config ou se o módulo não existir, não faz nada
+            if (currentModuleKey === 'config' || !modules[currentModuleKey]) return;
+
+            const moduleData = dataStore[currentModuleKey];
+            const moduleConfig = modules[currentModuleKey];
+            const history = calculateHistory(currentModuleKey); 
+            
+            // 1. Saldo Atual (já atualizado em calculateHistory)
+            const currentBalance = moduleData.balance;
+
+            // 2. Stake Atual para a próxima aposta (Stake Base)
+            const nextStake = calculateStake(currentBalance, moduleConfig.stakePercentage);
+
+            // 3. Total de Operações
+            const totalBets = history.length;
+            
+            // Total Lucro/Prejuízo
+            const initialBalance = moduleConfig.initialBalance;
+            const totalProfitLoss = currentBalance - initialBalance;
+            let profitLossClass = totalProfitLoss >= 0 ? 'text-green-win' : 'text-red-loss';
+            
+            // --- CÁLCULO DE RISCO (STOP/LOSS e PROFIT TARGET) ---
+            const slLimit = -(initialBalance * moduleConfig.stopLossDailyPercentage); 
+            const ptLimit = (initialBalance * moduleConfig.profitTargetDailyPercentage);
+            let balanceAlertClass = 'text-gray-800'; // Estilo padrão
+            let alertMessage = '';
+            
+            // Controladores de formulário e alerta
+            const betFormContainer = document.getElementById('bet-form-container');
+            const addButton = document.getElementById('add-bet-button');
+            const stakeInput = document.getElementById('stake-input');
+            const oddInput = document.getElementById('odd-input');
+            const resultSelect = document.getElementById('result-select');
+            const alertContainer = document.getElementById('risk-alert-message');
+
+            // Reabilitar inputs/botão por padrão (apenas se o módulo for de trading)
+            if (betFormContainer && betFormContainer.style.display !== 'none') {
+                if (addButton) addButton.disabled = false;
+                if (stakeInput) stakeInput.disabled = false;
+                if (oddInput) oddInput.disabled = false;
+                if (resultSelect) resultSelect.disabled = false;
+            }
+            
+            // 4. Checagem do STOP LOSS
+            if (totalProfitLoss <= slLimit && slLimit < 0) {
+                balanceAlertClass = 'sl-alert';
+                alertMessage = `STOP LOSS ATINGIDO! Limite: ${formatCurrency(slLimit)}. Pare de operar neste módulo!`;
+                // Desabilitar o formulário se SL for atingido
+                if (betFormContainer && betFormContainer.style.display !== 'none') {
+                    if (addButton) addButton.disabled = true;
+                    if (stakeInput) stakeInput.disabled = true;
+                    if (oddInput) oddInput.disabled = true;
+                    if (resultSelect) resultSelect.disabled = true;
+                }
+
+            // 5. Checagem do PROFIT TARGET (Só checa se o SL não foi atingido, ou se PT é maior que SL)
+            } else if (totalProfitLoss >= ptLimit && ptLimit > 0) {
+                balanceAlertClass = 'pt-alert';
+                alertMessage = `META DE LUCRO ATINGIDA! Limite: ${formatCurrency(ptLimit)}. Considere parar de operar neste módulo.`;
+                // Mantém habilitado, mas avisa
+            }
+
+
+            // Atualiza os elementos da UI
+            const balanceElement = document.getElementById('metric-balance');
+            
+            // Saldo Atual
+            balanceElement.textContent = formatCurrency(currentBalance);
+            balanceElement.className = `text-lg font-bold ${balanceAlertClass}`;
+            
+            // Alerta de Risco
+            if (alertContainer) {
+                if (alertMessage) {
+                    alertContainer.textContent = alertMessage;
+                    alertContainer.classList.remove('hidden');
+                } else {
+                    alertContainer.classList.add('hidden');
+                }
+            }
+
+
+            // Metas de SL/PT
+            document.getElementById('metric-sl-target').textContent = `SL: ${formatCurrency(slLimit)} (${(moduleConfig.stopLossDailyPercentage * 100).toFixed(1)}%)`;
+            document.getElementById('metric-pt-target').textContent = `PT: ${formatCurrency(ptLimit)} (${(moduleConfig.profitTargetDailyPercentage * 100).toFixed(1)}%)`;
+
+
+            document.getElementById('metric-stake').textContent = formatCurrency(nextStake);
+            document.getElementById('metric-total').textContent = totalBets;
+            
+            const totalProfitElement = document.getElementById('metric-total-profit');
+            totalProfitElement.textContent = formatCurrency(totalProfitLoss);
+            totalProfitElement.className = `text-lg font-bold ${profitLossClass}`;
+        }
+
+        // ------------------------------------
+        // FUNÇÕES DE INTERAÇÃO
+        // ------------------------------------
+
+        // Muda a aba ativa
+        function switchModule(moduleKey) {
+            
+            // Controla a visibilidade do formulário de aposta e da área de métricas
+            const betForm = document.getElementById('bet-form-container');
+            const metricsArea = document.getElementById('metrics-area-container');
+            
+            if (moduleKey === 'analysis') {
+                betForm.style.display = 'none';
+                metricsArea.style.display = 'block';
+            } else if (moduleKey === 'config') {
+                betForm.style.display = 'none';
+                metricsArea.style.display = 'none';
+            } else {
+                betForm.style.display = 'block';
+                metricsArea.style.display = 'block';
+                // Armazena qual módulo de trading está ativo, para uso na análise
+                lastTradingModule = moduleKey; 
+            }
+
+            if (moduleKey === activeModule) {
+                if(moduleKey === 'analysis') renderAnalysis();
+                if (moduleKey !== 'analysis' && moduleKey !== 'config') updateMetrics(moduleKey);
+                return;
+            }
+            
+            activeModule = moduleKey;
+
+            // Atualiza botões
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`.tab-button[data-module="${moduleKey}"]`).classList.add('active');
+
+            // Renderiza o conteúdo
+            if (activeModule === 'analysis') {
+                renderAnalysis();
+            } else if (activeModule === 'config') {
+                renderConfiguration();
+            } else {
+                renderTable();
+            }
+        }
+
+        // Adiciona uma nova aposta ao histórico
+        function addBet() {
+            const stakeInput = document.getElementById('stake-input');
+            const oddInput = document.getElementById('odd-input');
+            const resultSelect = document.getElementById('result-select');
+            const errorMessage = document.getElementById('error-message');
+
+            const odd = parseFloat(oddInput.value);
+            const result = resultSelect.value;
+            let manualStake = parseFloat(stakeInput.value);
+
+            errorMessage.style.display = 'none';
+            
+            // Validações básicas
+            if (isNaN(odd) || odd < 1.01 || !result) {
+                errorMessage.textContent = 'Por favor, insira uma Odd válida (> 1.01) e selecione o Resultado.';
+                errorMessage.style.display = 'block';
+                return;
+            }
+            if (!isNaN(manualStake) && manualStake <= 0) {
+                 errorMessage.textContent = 'A Stake manual deve ser positiva.';
+                errorMessage.style.display = 'block';
+                return;
+            }
+
+
+            const moduleData = dataStore[activeModule];
+            const moduleConfig = modules[activeModule];
+            
+            // Determina a stake a ser usada 
+            const baseStake = calculateStake(moduleData.balance, moduleConfig.stakePercentage);
+            const stake = !isNaN(manualStake) && manualStake > 0 ? manualStake : baseStake;
+
+            // Se a stake for maior que o saldo
+            if (stake > moduleData.balance) {
+                errorMessage.textContent = 'ERRO: A Stake (R$' + stake.toFixed(2) + ') excede o Saldo Atual (R$' + moduleData.balance.toFixed(2) + ').';
+                errorMessage.style.display = 'block';
+                return;
+            }
+            
+            // Adiciona a aposta ao histórico
+            moduleData.history.push({
+                date: new Date().toLocaleDateString('pt-BR'),
+                odd: odd,
+                result: result,
+                stakeUsed: stake,
+                timestamp: new Date().getTime() // Adiciona timestamp para ordenação global e análise temporal
+            });
+
+            saveData();
+            // Recarrega a tabela e métricas para refletir o novo cálculo
+            renderTable(); 
+
+            // Limpa os inputs
+            stakeInput.value = '';
+            oddInput.value = '';
+            resultSelect.value = '';
+        }
+
+        // ------------------------------------
+        // INICIALIZAÇÃO
+        // ------------------------------------
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            updateTabNames(); // Atualiza os nomes das abas com as configurações carregadas
+            
+            // Verifica o módulo ativo e renderiza a tela inicial correta
+            const initialModule = activeModule;
+            switchModule(initialModule);
+
+            // Configura os ouvintes de eventos
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.addEventListener('click', (e) => switchModule(e.target.dataset.module));
+            });
+
+            document.getElementById('add-bet-button').addEventListener('click', addBet);
+        });
+
+    </script>
+</body>
+</html>
